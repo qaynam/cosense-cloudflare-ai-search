@@ -61,6 +61,8 @@ export class CosenseSyncWorkflow extends WorkflowEntrypoint<Env> {
 				);
 
 				skip += data.pages.length;
+				// cosenseに負荷かけないように少し待つ
+				await new Promise((resolve) => setTimeout(resolve, 500));
 				console.log(`Progress: ${skip} / ${totalCount}`);
 			}
 
