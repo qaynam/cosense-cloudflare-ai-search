@@ -1,0 +1,42 @@
+// <docs-tag name="workflows-wrangler.json">
+//$schema: "node_modules/wrangler/config-schema.json"
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "cosense-rag",
+	"main": "src/index.ts",
+	"compatibility_date": "2024-10-22",
+	"observability": {
+		"enabled": true,
+	},
+	// <docs-tag name="workflows-binding-wrangler.json">
+	"workflows": [
+		{
+			// name of your workflow
+			"name": "cosense-rag",
+			// binding name env.MYWORKFLOW
+			"binding": "SYNC_WORKFLOW",
+			// this is class that extends the Workflow class in src/index.ts
+			"class_name": "CosenseSyncWorkflow",
+		},
+	],
+	"r2_buckets": [
+		{
+			"binding": "RAG_BUCKET",
+			"bucket_name": "cosense-rag",
+		},
+	],
+	"assets": {
+		"binding": "ASSET",
+		"html_handling": "drop-trailing-slash",
+		"directory": "./assets",
+		"not_found_handling": "404-page",
+		"run_worker_first": true,
+	},
+	"ai": {
+		"binding": "AI",
+		"remote": true,
+	},
+	// </docs-tag name="workflows-binding-wrangler.json">
+	"compatibility_flags": ["nodejs_compat"],
+}
+// </docs-tag name="workflows-wrangler.json">

@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>AI Chat</title>
+		<script src="https://cdn.tailwindcss.com"></script>
+		<script src="https://cdn.jsdelivr.net/npm/marked@17.0.1/lib/marked.umd.min.js"></script>
+		<style>
+			[x-cloak] {
+				display: none !important;
+			}
+
+			/* ── Markdown Styles ── */
+			.answer h1 {
+				font-size: 1.8em;
+				font-weight: 700;
+				margin: 1.2em 0 0.6em;
+				padding-bottom: 0.3em;
+				border-bottom: 1px solid #d0d0d0;
+				color: #1a1a1a;
+			}
+			.answer h2 {
+				font-size: 1.4em;
+				font-weight: 600;
+				margin: 1.1em 0 0.5em;
+				padding-bottom: 0.25em;
+				border-bottom: 1px solid #e0e0e0;
+				color: #252525;
+			}
+			.answer h3 {
+				font-size: 1.15em;
+				font-weight: 600;
+				margin: 1em 0 0.4em;
+				color: #2a2a2a;
+			}
+			.answer h4,
+			.answer h5,
+			.answer h6 {
+				font-size: 1em;
+				font-weight: 600;
+				margin: 0.8em 0 0.3em;
+				color: #333;
+			}
+			.answer p {
+				margin: 0.6em 0;
+			}
+			.answer a {
+				color: #2563eb;
+				text-decoration: none;
+			}
+			.answer a:hover {
+				text-decoration: underline;
+			}
+			.answer code {
+				background: #f3f4f6;
+				padding: 2px 6px;
+				border-radius: 4px;
+				font-family: 'SF Mono', 'Fira Code', Consolas, monospace;
+				font-size: 0.9em;
+				color: #b5432a;
+			}
+			.answer pre {
+				background: #f8f9fa;
+				border: 1px solid #d0d0d0;
+				border-radius: 8px;
+				padding: 16px;
+				overflow-x: auto;
+				margin: 1em 0;
+			}
+			.answer pre code {
+				background: none;
+				padding: 0;
+				color: #1e1e1e;
+				font-size: 13px;
+				line-height: 1.5;
+			}
+			.answer blockquote {
+				border-left: 3px solid #a0a0a0;
+				margin: 1em 0;
+				padding: 0.4em 0 0.4em 16px;
+				color: #555;
+			}
+			.answer ul,
+			.answer ol {
+				padding-left: 1.8em;
+				margin: 0.5em 0;
+				list-style: disc;
+			}
+			.answer li {
+				margin: 0.25em 0;
+			}
+			.answer table {
+				border-collapse: collapse;
+				width: 100%;
+				margin: 1em 0;
+			}
+			.answer th,
+			.answer td {
+				border: 1px solid #d0d0d0;
+				padding: 8px 12px;
+				text-align: left;
+			}
+			.answer th {
+				background: #f3f4f6;
+				font-weight: 600;
+				color: #1a1a1a;
+			}
+			.answer tr:nth-child(even) {
+				background: #f9fafb;
+			}
+			.answer hr {
+				border: none;
+				border-top: 1px solid #d0d0d0;
+				margin: 1.5em 0;
+			}
+			.answer img {
+				max-width: 100%;
+				border-radius: 6px;
+				margin: 0.5em 0;
+			}
+
+			/* ── Scrollbar ── */
+			.answer::-webkit-scrollbar {
+				width: 6px;
+			}
+			.answer::-webkit-scrollbar-track {
+				background: transparent;
+			}
+			.answer::-webkit-scrollbar-thumb {
+				background: #c0c0c0;
+				border-radius: 3px;
+			}
+			.answer::-webkit-scrollbar-thumb:hover {
+				background: #a0a0a0;
+			}
+		</style>
+		<script>
+			const renderer = new marked.Renderer();
+			const originalLink = renderer.link;
+			const gyazoRegex = /https?:\/\/gyazo\.com\/([a-f0-9]{32})/;
+			const mdxRegex = /^mdx\/(.+)\.mdx$/;
+			const projectName = (document.cookie.split('; ').find((c) => c.startsWith('projectName=')) || '').split('=')[1] || '';
+
+			renderer.link = function ({ href, title, text }) {
+				if (href) {
+					const match = href.match(gyazoRegex);
+					if (match) {
+						const imageId = match[1];
+						const imgUrl = `https://gyazo.com/${imageId}`;
+						const titleAttr = title ? ` title="${title}"` : '';
+						return `<img src="${imgUrl}/raw" alt="${text}"${titleAttr} />`;
+					}
+
+					const mdxMatch = href.match(mdxRegex);
+					if (mdxMatch) {
+						const pageName = mdxMatch[1];
+						const scrapboxUrl = `https://scrapbox.io/${encodeURIComponent(projectName)}/${encodeURIComponent(pageName)}`;
+						const titleAttr = title ? ` title="${title}"` : '';
+						return `<a href="${scrapboxUrl}"${titleAttr} target="_blank" rel="noopener noreferrer">${text}</a>`;
+					}
+				}
+
+				const titleAttr = title ? ` title="${title}"` : '';
+				return `<a href="${href}"${titleAttr} target="_blank" rel="noopener noreferrer">${text}</a>`;
+			};
+
+			document.addEventListener('alpine:init', () => {
+				Alpine.data('chat', () => ({
+					messages: [{ role: 'assistant', content: 'Hello! How can I help you today?' }],
+					userInput: '',
+					isLoading: false,
+					async sendMessage() {
+						if (!this.userInput.trim()) return;
+
+						this.messages.push({ role: 'user', content: this.userInput.trim() });
+						const userMsg = this.userInput.trim();
+						this.userInput = '';
+						this.isLoading = true;
+
+						this.$nextTick(() => {
+							this.$refs.chatContainer.scrollTop = this.$refs.chatContainer.scrollHeight;
+						});
+
+						await fetch('/api/ask?q=' + encodeURIComponent(userMsg))
+							.then((res) => res.json())
+							.then((data) => {
+								this.messages.push({
+									content: marked.parse(data.answer, { renderer }),
+									role: 'assistant',
+								});
+							})
+							.catch((e) => {
+								console.log(e);
+								this.messages.push({
+									role: 'assistant',
+									content: 'Sorry, there was an error processing your request.',
+								});
+							})
+							.finally(() => {
+								this.isLoading = false;
+								this.$nextTick(() => {
+									this.$refs.chatContainer.scrollTop = this.$refs.chatContainer.scrollHeight;
+								});
+							});
+					},
+				}));
+			});
+		</script>
+		<script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+	</head>
+	<body class="bg-white h-screen">
+		<div x-data="chat" class="flex flex-col w-full max-w-4xl mx-auto h-screen">
+			<!-- Header -->
+			<div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+				<div class="flex items-center gap-3">
+					<div class="w-8 h-8 rounded-full bg-neutral-900 flex items-center justify-center">
+						<svg
+							xmlns="http://www.w3.org/2000/svg"
+							class="h-4 w-4 text-white"
+							fill="none"
+							viewBox="0 0 24 24"
+							stroke="currentColor"
+							stroke-width="2"
+						>
+							<path
+								stroke-linecap="round"
+								stroke-linejoin="round"
+								d="M8 10h.01M12 10h.01M16 10h.01M9 16h6M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+							/>
+						</svg>
+					</div>
+					<div>
+						<h1 class="text-sm font-medium text-neutral-900">AI Assistant</h1>
+						<p class="text-xs text-neutral-500">Online</p>
+					</div>
+				</div>
+			</div>
+
+			<!-- Chat Messages -->
+			<div x-ref="chatContainer" class="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+				<template x-for="(message, index) in messages" :key="index">
+					<div :class="message.role === 'user' ? 'flex justify-end' : 'flex justify-start '">
+						<div class="flex items-start gap-3 max-w-[80%]" :class="message.role === 'user' ? 'flex-row-reverse' : ''">
+							<!-- Avatar -->
+							<div
+								class="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-medium"
+								:class="message.role === 'user' ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-600 border border-neutral-200'"
+							>
+								<span x-text="message.role === 'user' ? 'U' : 'AI'"></span>
+							</div>
+							<!-- Bubble -->
+							<div
+								class="px-4 py-2.5 rounded-lg text-sm leading-relaxed"
+								:class="message.role === 'user' ? 'bg-neutral-900 text-white' : 'bg-neutral-100 text-neutral-800 answer break-words break-all' "
+							>
+								<template x-if="message.role === 'user'">
+									<span x-text="message.content"></span>
+								</template>
+								<template x-if="message.role === 'assistant'">
+									<div x-html="marked.parse(message.content)"></div>
+								</template>
+							</div>
+						</div>
+					</div>
+				</template>
+
+				<!-- Typing Indicator -->
+				<div x-show="isLoading" x-cloak class="flex justify-start">
+					<div class="flex items-start gap-3 max-w-[80%]">
+						<div
+							class="w-7 h-7 rounded-full bg-neutral-100 border border-neutral-200 flex-shrink-0 flex items-center justify-center text-neutral-600 text-xs font-medium"
+						>
+							AI
+						</div>
+						<div class="bg-neutral-100 px-4 py-3 rounded-lg">
+							<div class="flex space-x-1.5">
+								<div class="w-1.5 h-1.5 bg-neutral-400 rounded-full animate-bounce" style="animation-delay: 0ms"></div>
+								<div class="w-1.5 h-1.5 bg-neutral-400 rounded-full animate-bounce" style="animation-delay: 150ms"></div>
+								<div class="w-1.5 h-1.5 bg-neutral-400 rounded-full animate-bounce" style="animation-delay: 300ms"></div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- Input Area -->
+			<div class="px-6 py-4 border-t border-gray-200">
+				<form @submit.prevent="sendMessage()" class="flex items-center gap-2">
+					<input
+						x-model="userInput"
+						type="text"
+						placeholder="Type your message..."
+						class="flex-1 px-3 py-2 bg-white rounded-md border border-neutral-200 focus:outline-none focus:ring-2 focus:ring-neutral-950 focus:ring-offset-1 text-sm transition placeholder:text-neutral-400"
+						:disabled="isLoading"
+					/>
+					<button
+						type="submit"
+						:disabled="isLoading || !userInput.trim()"
+						class="inline-flex items-center justify-center px-4 py-2 bg-neutral-900 text-white rounded-md hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-950 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed transition text-sm font-medium"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14M12 5l7 7-7 7" />
+						</svg>
+					</button>
+				</form>
+			</div>
+		</div>
+	</body>
+</html>
