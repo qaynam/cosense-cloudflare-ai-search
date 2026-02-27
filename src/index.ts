@@ -3,7 +3,6 @@ import { WorkflowEntrypoint, WorkflowStep, WorkflowEvent } from 'cloudflare:work
 type Env = {
 	RAG_BUCKET: R2Bucket;
 	SYNC_WORKFLOW: Workflow;
-	COSENSE_SID: string;
 	PROJECT_NAME: string;
 	ASSET: Fetcher;
 	AI: Ai;
@@ -21,9 +20,7 @@ export class CosenseSyncWorkflow extends WorkflowEntrypoint<Env> {
 
 			while (skip < totalCount) {
 				const listUrl = `https://scrapbox.io/api/pages/${projectName}?skip=${skip}&limit=${limit}`;
-				const res = await fetch(listUrl, {
-					headers: { Cookie: `connect.sid=${this.env.COSENSE_SID}` },
-				});
+				const res = await fetch(listUrl);
 
 				if (!res.ok) throw new Error(`List API Error: ${res.statusText}`);
 				const data = (await res.json()) as any;
@@ -32,9 +29,7 @@ export class CosenseSyncWorkflow extends WorkflowEntrypoint<Env> {
 				await Promise.all(
 					data.pages.map(async (p: any) => {
 						try {
-							const pageRes = await fetch(`https://scrapbox.io/api/pages/${projectName}/${encodeURIComponent(p.title)}`, {
-								headers: { Cookie: `connect.sid=${this.env.COSENSE_SID}` },
-							});
+							const pageRes = await fetch(`https://scrapbox.io/api/pages/${projectName}/${encodeURIComponent(p.title)}`);
 							if (!pageRes.ok) return;
 
 							const pageDetail = (await pageRes.json()) as any;
